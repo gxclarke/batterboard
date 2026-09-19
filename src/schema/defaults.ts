@@ -40,7 +40,7 @@ export function defaultProject(): Project {
     createdAt: now,
     updatedAt: now,
     site: {
-      aerial: null,
+      tiles: [],
       scale: null,
       northOffsetDeg: 0,
       location: null,

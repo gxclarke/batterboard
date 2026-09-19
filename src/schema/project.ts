@@ -5,8 +5,8 @@
  *
  * Units and conventions (see docs/adr/0004-coordinate-conventions.md):
  * - Linear units are feet (decimal). Angles are degrees. Roof pitch is rise per 12.
- * - Site space is a 2D plane in feet: origin at the aerial image's top-left at
- *   calibration time, +x right, +y down. Angles in site space are measured from
+ * - Site space is a 2D plane in feet: the aerial pixel frame divided by
+ *   pxPerFoot. Origin is the first tile's top-left, +x right, +y down. Angles in site space are measured from
  *   +x toward +y, i.e. clockwise on screen.
  * - Site space is converted to Three.js in exactly one place: src/geometry/frame.ts.
  *
@@ -36,20 +36,30 @@ export const PolygonSchema = z.array(PointSchema).min(3).max(500);
 // ---------- site ----------
 
 export const CalibrationSchema = z.object({
-  p1: PointSchema, // pixel coords in the aerial image
+  p1: PointSchema, // shared pixel frame
   p2: PointSchema,
   knownFeet: z.number().min(1).max(500),
   label: z.string().max(80), // "garage door", "driveway width"
 });
 
+/**
+ * One screenshot of the aerial. Several tiles taken at the same zoom compose
+ * one image frame: `offsetPx` is the tile's top-left in that shared pixel
+ * frame (the first tile sits at [0, 0]). See docs/adr/0008.
+ */
+export const AerialTileSchema = z.object({
+  id: Id,
+  name: z.string().max(80),
+  blobKey: z.string().min(1), // IndexedDB key; never inline image data
+  widthPx: z.number().int().min(16).max(20000),
+  heightPx: z.number().int().min(16).max(20000),
+  offsetPx: PointSchema,
+});
+export type AerialTile = z.infer<typeof AerialTileSchema>;
+
 export const SiteSchema = z.object({
-  aerial: z
-    .object({
-      blobKey: z.string().min(1), // IndexedDB key; never inline image data
-      widthPx: z.number().int().min(16).max(20000),
-      heightPx: z.number().int().min(16).max(20000),
-    })
-    .nullable(),
+  tiles: z.array(AerialTileSchema).max(12),
+  /** Pixel-frame to feet. Null until calibrated. Calibration points are in the shared pixel frame. */
   scale: z
     .object({
       pxPerFoot: z.number().min(0.1).max(500),

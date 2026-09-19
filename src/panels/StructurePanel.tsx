@@ -31,7 +31,7 @@ export function StructurePanel() {
   return (
     <aside className="panel">
       <header>
-        <h1>Batterboard</h1>
+        <h1>{carport.name}</h1>
         <div className="row">
           <button type="button" onClick={undo} disabled={!canUndo}>
             Undo
@@ -105,6 +105,22 @@ export function StructurePanel() {
           max={14}
           step={0.25}
           onChange={(v) => set((c) => (c.plateHeightFt = v))}
+        />
+        <Num
+          label="Position X (ft)"
+          value={carport.position[0]}
+          min={-2000}
+          max={2000}
+          step={0.5}
+          onChange={(v) => set((c) => (c.position = [v, c.position[1]]))}
+        />
+        <Num
+          label="Position Y (ft)"
+          value={carport.position[1]}
+          min={-2000}
+          max={2000}
+          step={0.5}
+          onChange={(v) => set((c) => (c.position = [c.position[0], v]))}
         />
         <Num
           label="Rotation (deg)"

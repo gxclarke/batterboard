@@ -3,6 +3,7 @@
   "language": "en",
   "words": [
     "GLTF",
+    "IDBP",
     "batterboard",
     "biomejs",
     "birdsmouth",
@@ -10,6 +11,7 @@
     "drei",
     "gxclarke",
     "homography",
+    "indexeddb",
     "inlines",
     "lefthook",
     "metalness",
@@ -23,10 +25,12 @@
     "rrggbb",
     "scaniverse",
     "suncalc",
+    "topbar",
     "tris",
     "typecheck",
     "undoable",
     "unpermitted",
+    "unvalidated",
     "viewports",
     "wrangler",
     "zustand"

@@ -1,6 +1,10 @@
 import { useThree } from "@react-three/fiber";
-import { useEffect, useMemo } from "react";
-import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
+import { useEffect, useMemo, useState } from "react";
+import { CanvasTexture, RepeatWrapping, SRGBColorSpace, Texture } from "three";
+import { siteToThree } from "@/geometry/frame";
+import type { AerialTile } from "@/schema/project";
+import { loadTileImage } from "@/site/useTileImages";
+import { useProject } from "@/store/useProject";
 
 const GROUND_FT = 600;
 const SECTION_FT = 10;
@@ -33,11 +37,15 @@ function drawGridTile(): HTMLCanvasElement {
   return canvas;
 }
 
-/**
- * Ground plane with a 1 ft / 10 ft grid baked into its texture. Receives
- * shadows. The aerial image replaces this once a site is calibrated.
- */
+/** Ground: the calibrated aerial when there is one, otherwise a 1 ft / 10 ft grid. */
 export function Ground() {
+  const tiles = useProject((s) => s.project.site.tiles);
+  const scale = useProject((s) => s.project.site.scale);
+  if (scale && tiles.length > 0) return <AerialGround tiles={tiles} pxPerFoot={scale.pxPerFoot} />;
+  return <GridGround />;
+}
+
+function GridGround() {
   const gl = useThree((s) => s.gl);
   const texture = useMemo(() => {
     const t = new CanvasTexture(drawGridTile());
@@ -54,5 +62,75 @@ export function Ground() {
       <planeGeometry args={[GROUND_FT, GROUND_FT]} />
       <meshStandardMaterial map={texture} roughness={1} />
     </mesh>
+  );
+}
+
+interface TileTexture {
+  tile: AerialTile;
+  texture: Texture;
+}
+
+function useTileTextures(tiles: readonly AerialTile[]): TileTexture[] {
+  const gl = useThree((s) => s.gl);
+  const [textures, setTextures] = useState<TileTexture[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      tiles.map((tile) =>
+        loadTileImage(tile.blobKey).then(
+          (img) => {
+            const texture = new Texture(img);
+            texture.colorSpace = SRGBColorSpace;
+            texture.anisotropy = gl.capabilities.getMaxAnisotropy();
+            texture.needsUpdate = true;
+            return { tile, texture } as TileTexture;
+          },
+          () => null,
+        ),
+      ),
+    ).then((list) => {
+      const loaded = list.filter((x): x is TileTexture => x !== null);
+      if (cancelled) for (const t of loaded) t.texture.dispose();
+      else setTextures(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tiles, gl]);
+  useEffect(
+    () => () => {
+      for (const t of textures) t.texture.dispose();
+    },
+    [textures],
+  );
+  return textures;
+}
+
+function AerialGround({ tiles, pxPerFoot }: { tiles: readonly AerialTile[]; pxPerFoot: number }) {
+  const textures = useTileTextures(tiles);
+  return (
+    <>
+      {/* neutral ground under and beyond the imagery */}
+      <mesh rotation-x={-Math.PI / 2} position-y={-0.02} receiveShadow>
+        <planeGeometry args={[GROUND_FT * 2, GROUND_FT * 2]} />
+        <meshStandardMaterial color="#b8b3a4" roughness={1} />
+      </mesh>
+      {textures.map(({ tile, texture }, i) => {
+        const w = tile.widthPx / pxPerFoot;
+        const h = tile.heightPx / pxPerFoot;
+        const center = siteToThree([
+          (tile.offsetPx[0] + tile.widthPx / 2) / pxPerFoot,
+          (tile.offsetPx[1] + tile.heightPx / 2) / pxPerFoot,
+        ]);
+        // later tiles sit a hair higher so overlaps don't z-fight
+        center.y = i * 0.002;
+        return (
+          <mesh key={tile.id} position={center} rotation-x={-Math.PI / 2} receiveShadow>
+            <planeGeometry args={[w, h]} />
+            <meshStandardMaterial map={texture} roughness={1} />
+          </mesh>
+        );
+      })}
+    </>
   );
 }

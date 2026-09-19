@@ -1,7 +1,7 @@
 /**
  * Project state with an undo/redo stack. Every mutation goes through `commit`,
  * which validates the resulting project against the schema and refuses to
- * apply anything invalid. Autosave to IndexedDB arrives with Phase 0.
+ * apply anything invalid. Autosave is wired in store/autosave.ts.
  */
 import { create } from "zustand";
 import { defaultProject } from "@/schema/defaults";
@@ -11,25 +11,31 @@ const HISTORY_LIMIT = 100;
 
 interface ProjectState {
   project: Project;
+  /** false until persistence has loaded (or decided there is nothing to load) */
+  hydrated: boolean;
   past: Project[];
   future: Project[];
+  /** Replace the store contents without touching history. Used on load and reset. */
+  hydrate: (project: Project) => void;
   /** Replace the project with the result of `fn`. Returns false if the result failed validation. */
-  commit: (label: string, fn: (draft: Project) => Project) => boolean;
+  commit: (label: string, fn: (draft: Project) => Project | undefined) => boolean;
   updateStructure: (id: string, fn: (s: Structure) => Structure) => boolean;
   undo: () => void;
   redo: () => void;
-  canUndo: () => boolean;
-  canRedo: () => boolean;
 }
 
 export const useProject = create<ProjectState>((set, get) => ({
   project: defaultProject(),
+  hydrated: false,
   past: [],
   future: [],
 
+  hydrate: (project) => set({ project, hydrated: true, past: [], future: [] }),
+
   commit: (label, fn) => {
     const { project, past } = get();
-    const next = fn(structuredClone(project));
+    const draft = structuredClone(project);
+    const next = fn(draft) ?? draft;
     next.updatedAt = new Date().toISOString();
     const result = ProjectSchema.safeParse(next);
     if (!result.success) {
@@ -43,7 +49,6 @@ export const useProject = create<ProjectState>((set, get) => ({
   updateStructure: (id, fn) =>
     get().commit(`update ${id}`, (draft) => {
       draft.structures = draft.structures.map((s) => (s.id === id ? fn(s) : s));
-      return draft;
     }),
 
   undo: () => {
@@ -59,7 +64,4 @@ export const useProject = create<ProjectState>((set, get) => ({
     if (!next) return;
     set({ project: next, past: [...past, project], future: rest });
   },
-
-  canUndo: () => get().past.length > 0,
-  canRedo: () => get().future.length > 0,
 }));

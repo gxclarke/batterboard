@@ -13,3 +13,4 @@ Format: Context, Decision, Consequences. Keep each under a page.
 | [0005](0005-v1-scope-decisions.md) | v1 scope: one project, gate tracing on small screens | accepted |
 | [0006](0006-tooling.md) | Tooling: pnpm, Biome, lefthook, cspell, Vitest, React 19 | accepted |
 | [0007](0007-llm-provider.md) | LLM: Claude Opus through a single Worker | accepted |
+| [0008](0008-aerial-tiles.md) | Aerial as tiles, cropped at import, aligned by one point | accepted |

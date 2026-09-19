@@ -26,4 +26,4 @@ Pre-commit runs Biome and cspell on staged files via lefthook.
 
 ## Layout
 
-See §6 of the plan. Structures live under `src/geometry/structures/<kind>.ts` with a registry in `index.ts` (ADR 0002).
+See §6 of the plan. The 2D site mode (import, crop, align, calibrate, trace) lives in `src/site/` and `src/calibrate/`. Structures live under `src/geometry/structures/<kind>.ts` with a registry in `index.ts` (ADR 0002).
