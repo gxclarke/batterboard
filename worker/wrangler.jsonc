@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "batterboard-llm",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Create with: wrangler kv namespace create LIMITS  (paste the id here)
+  "kv_namespaces": [{ "binding": "LIMITS", "id": "ea4690767571401fa69348918047c795" }],
+  "vars": {
+    // Comma-separated list of origins allowed to call this Worker. Localhost is always allowed in `wrangler dev`.
+    "ALLOWED_ORIGINS": "https://batterboard.batterboard-worker.workers.dev,https://*.batterboard-worker.workers.dev",
+    "SESSION_CAP_PER_DAY": "15",
+    "IP_CAP_PER_DAY": "60",
+    "MODEL": "claude-opus-5",
+    // Only needed when the API key is not scoped to one workspace. Settings > Workspaces in the Claude Console.
+    "ANTHROPIC_WORKSPACE_ID": "wrkspc_01HqyD19yJLQQRnci8s8jcno"
+  }
+  // Secrets (never in this file): wrangler secret put ANTHROPIC_API_KEY
+}

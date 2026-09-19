@@ -51,6 +51,18 @@ body,
   flex: 1;
 }
 
+.topbar .divider {
+  width: 1px;
+  height: 20px;
+  background: #444;
+  margin: 0 4px;
+}
+
+.topbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .topbar button {
   font: inherit;
   color: inherit;
@@ -571,6 +583,68 @@ button.primary:disabled {
 
 .checks p {
   margin: 4px 0 0;
+}
+
+/* ---------- chat ---------- */
+
+.chat {
+  margin: 8px -4px 4px;
+  padding: 8px 12px 10px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 6px;
+}
+
+.panel .chat h2 {
+  margin: 0 0 6px;
+  display: flex;
+  justify-content: space-between;
+  color: #1e40af;
+}
+
+.chat-log {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.chat-log li {
+  padding: 4px 0;
+}
+
+.chat-log li p {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.chat-log li.user p {
+  color: var(--muted);
+}
+
+.chat-log li.user p::before {
+  content: "You: ";
+  font-weight: 600;
+}
+
+.chat-log li.error p {
+  color: #9a4a00;
+}
+
+.chat-changes {
+  margin: 4px 0 0;
+  padding-left: 14px;
+  font-size: 12.5px;
+}
+
+.chat-form {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-form input {
+  flex: 1;
 }
 
 @media (max-width: 800px) {

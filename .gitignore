@@ -5,3 +5,5 @@ coverage
 *.local
 .vite
 local
+.wrangler
+worker/.dev.vars

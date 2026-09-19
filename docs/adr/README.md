@@ -17,3 +17,4 @@ Format: Context, Decision, Consequences. Keep each under a page.
 | [0009](0009-reality-checks.md) | Reality checks are advisory approximations | accepted |
 | [0010](0010-ground-slope.md) | Ground slope under a structure | accepted |
 | [0011](0011-facade-photos.md) | Facade photos: store the corners, rectify at load | accepted |
+| [0012](0012-natural-language-path.md) | Natural language: structured patches through one Worker | accepted |

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { WarningPanel } from "@/checks/WarningPanel";
+import { llmEnabled } from "@/llm/worker-client";
 import {
   BeamSizeSchema,
   type Carport,
@@ -9,15 +10,12 @@ import {
   RoofingSchema,
 } from "@/schema/project";
 import { useProject } from "@/store/useProject";
+import { ChatPanel } from "./ChatPanel";
 
 /** Manual parameter UI for the (first) carport. The LLM path patches the same store. */
 export function StructurePanel() {
   const carport = useProject((s) => s.project.structures.find((x) => x.kind === "carport"));
   const updateStructure = useProject((s) => s.updateStructure);
-  const undo = useProject((s) => s.undo);
-  const redo = useProject((s) => s.redo);
-  const canUndo = useProject((s) => s.past.length > 0);
-  const canRedo = useProject((s) => s.future.length > 0);
 
   if (!carport) return <aside className="panel">No carport in this project.</aside>;
 
@@ -33,16 +31,9 @@ export function StructurePanel() {
     <aside className="panel">
       <header>
         <h1>{carport.name}</h1>
-        <div className="row">
-          <button type="button" onClick={undo} disabled={!canUndo}>
-            Undo
-          </button>
-          <button type="button" onClick={redo} disabled={!canRedo}>
-            Redo
-          </button>
-        </div>
       </header>
 
+      {llmEnabled() && <ChatPanel carport={carport} />}
       <WarningPanel structure={carport} />
 
       <Section title="Roof">

@@ -14,7 +14,9 @@
     "lint:fix": "biome check --write .",
     "spell": "cspell --no-progress \"**/*.{ts,tsx,md,json,jsonc}\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy:site": "wrangler deploy",
+    "deploy:worker": "pnpm -C worker run deploy"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -39,6 +41,7 @@
     "lefthook": "^2.1.14",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "wrangler": "^4.135.0"
   }
 }

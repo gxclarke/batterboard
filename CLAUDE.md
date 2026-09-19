@@ -22,7 +22,7 @@ pnpm spell      # cspell
 pnpm build      # typecheck + vite build
 ```
 
-Pre-commit runs Biome and cspell on staged files via lefthook.
+Pre-commit runs Biome and cspell on staged files via lefthook. Deploy: `pnpm run deploy:site` (root `wrangler.jsonc`, static assets) and `pnpm run deploy:worker`. The Cloudflare Worker lives in `worker/` (`pnpm -C worker typecheck`, `dev`, `deploy`); its handler is pure and tested from the root test run.
 
 ## Layout
 

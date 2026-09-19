@@ -2,10 +2,6 @@
   "version": "0.2",
   "language": "en",
   "words": [
-    "GLTF",
-    "Heckbert",
-    "IDBP",
-    "TRIB",
     "batterboard",
     "biomejs",
     "birdsmouth",
@@ -13,8 +9,11 @@
     "cloudflare",
     "downslope",
     "drei",
+    "GLTF",
     "gxclarke",
+    "Heckbert",
     "homography",
+    "IDBP",
     "indexeddb",
     "inlines",
     "lefthook",
@@ -35,14 +34,32 @@
     "sunbar",
     "suncalc",
     "topbar",
+    "TRIB",
     "tris",
     "typecheck",
+    "typeless",
     "undoable",
     "unpermitted",
     "unvalidated",
     "viewports",
     "wrangler",
+    "wrkspc",
     "zustand"
   ],
-  "ignorePaths": ["node_modules/**", ".git/**", "dist/**", "*.lock", "pnpm-lock.yaml"]
+  "ignorePaths": [
+    "node_modules/**",
+    ".git/**",
+    "dist/**",
+    "*.lock",
+    "pnpm-lock.yaml"
+  ],
+  "patterns": [
+    {
+      "name": "anthropic-ids",
+      "pattern": "/\\b(wrkspc|sk-ant)[_-][A-Za-z0-9_-]+/g"
+    }
+  ],
+  "ignoreRegExpList": [
+    "anthropic-ids"
+  ]
 }
