@@ -84,6 +84,19 @@ export function StructurePanel() {
         />
       </Section>
 
+      {carport.type === "gable" && (
+        <Section title="Timber details">
+          <label>
+            <span>Exposed gable truss</span>
+            <input
+              type="checkbox"
+              checked={carport.gableTruss}
+              onChange={(e) => set((c) => (c.gableTruss = e.target.checked))}
+            />
+          </label>
+        </Section>
+      )}
+
       <Section title="Size">
         <Num
           label="Width (ft)"
@@ -187,6 +200,29 @@ export function StructurePanel() {
           options={["16", "24"]}
           onChange={(v) => set((c) => (c.framing.rafterSpacingIn = v === "16" ? 16 : 24))}
         />
+      </Section>
+
+      <Section title="Ground">
+        <Num
+          label="Ground falls (ft)"
+          value={carport.ground.dropFt}
+          min={0}
+          max={6}
+          step={0.25}
+          onChange={(v) => set((c) => (c.ground.dropFt = v))}
+        />
+        <Num
+          label="Downhill toward (deg)"
+          value={carport.ground.towardDeg}
+          min={0}
+          max={360}
+          step={5}
+          onChange={(v) => set((c) => (c.ground.towardDeg = v))}
+        />
+        <p className="hint">
+          Across the footprint. 0° is image-right, 90° is image-down. The low corner sits on the aerial and the rest
+          shows as a graded pad.
+        </p>
       </Section>
 
       <Section title="Colors">

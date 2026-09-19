@@ -142,13 +142,44 @@ describe("layoutCarport: braces", () => {
   });
 });
 
+describe("layoutCarport: truss and ground", () => {
+  it("adds a king-post truss to each gable end when asked", () => {
+    const plain = layoutCarport(defaultCarport());
+    const trussed = layoutCarport(defaultCarport({ gableTruss: true }));
+    expect(trussed.members.length - plain.members.length).toBe(8); // per end: tie, king, two struts
+    expect(trussed.members.filter((m) => m.part === "king")).toHaveLength(2);
+    const king = trussed.members.find((m) => m.part === "king");
+    expect(king?.b[1]).toBeCloseTo(trussed.members.find((m) => m.part === "rafter")?.a[1] ?? 0);
+    expect(
+      layoutCarport(defaultCarport({ type: "hip", gableTruss: true })).members.filter((m) => m.part === "tie"),
+    ).toHaveLength(0);
+  });
+
+  it("lengthens posts on the high side of a slope and adds a pad", () => {
+    const flat = layoutCarport(defaultCarport());
+    expect(flat.pad).toHaveLength(0);
+    // ground falls 2 ft toward site +y (local +z): the -z end is 2 ft higher
+    const sloped = layoutCarport(defaultCarport({ ground: { dropFt: 2, towardDeg: 90 } }));
+    expect(sloped.groundAt(0, 10)).toBeCloseTo(0);
+    expect(sloped.groundAt(0, -10)).toBeCloseTo(2);
+    const low = sloped.posts.filter((p) => p.center[2] > 5);
+    const high = sloped.posts.filter((p) => p.center[2] < -5);
+    expect(low.length).toBe(2);
+    for (const p of low) expect(p.size[1]).toBeLessThan(8.1);
+    for (const p of high) expect(p.size[1]).toBeLessThan(low[0]?.size[1] ?? 0);
+    expect(sloped.pad).toHaveLength(5);
+    for (const b of sloped.beams) expect(b.center[1]).toBeCloseTo(flat.beams[0]?.center[1] ?? 0);
+  });
+});
+
 describe("buildCarport", () => {
   it("is deterministic and produces one mesh per part", () => {
     const c = defaultCarport();
     const l = layoutCarport(c);
     const g1 = buildCarport(c);
     const g2 = buildCarport(c);
-    const expected = l.posts.length + l.beams.length + (l.ridge ? 1 : 0) + l.members.length + l.roofPlanes.length;
+    const expected =
+      l.posts.length + l.beams.length + (l.ridge ? 1 : 0) + l.members.length + l.roofPlanes.length + l.pad.length;
     expect(g1.children).toHaveLength(expected);
     expect(g1.children.every((o) => o instanceof Mesh)).toBe(true);
     expect(g1.children.map((o) => o.position.toArray())).toEqual(g2.children.map((o) => o.position.toArray()));

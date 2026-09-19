@@ -9,12 +9,22 @@
  * (the direction vehicles enter), y up, origin at footprint center on grade.
  * Framing convention is documented in docs/adr/0003 and on CarportSchema.
  */
-import { BoxGeometry, BufferGeometry, Float32BufferAttribute, Group, Matrix4, Mesh, Vector3 } from "three";
+import {
+  BoxGeometry,
+  BufferGeometry,
+  DoubleSide,
+  Float32BufferAttribute,
+  Group,
+  Matrix4,
+  Mesh,
+  MeshStandardMaterial,
+  Vector3,
+} from "three";
 import type { Carport, Vec3 } from "@/schema/project";
 import { inToFt, lumber } from "../lumber";
 import { roofingMaterial, woodMaterial } from "../materials";
 
-export type Part = "post" | "beam" | "ridge" | "rafter" | "jack" | "hip" | "brace";
+export type Part = "post" | "beam" | "ridge" | "rafter" | "jack" | "hip" | "brace" | "tie" | "king" | "strut";
 
 /** Axis-aligned box. */
 export interface Box {
@@ -43,6 +53,10 @@ export interface CarportLayout {
   ridge: Box | null;
   members: Member[];
   roofPlanes: RoofPlane[];
+  /** Faces of the graded pad under the posts when the ground slopes (empty when flat). */
+  pad: Vec3[][];
+  /** Ground height under local (x, z); 0 at the lowest corner. */
+  groundAt: (x: number, z: number) => number;
   /** Rafter stations along the ridge axis, in local feet. */
   rafterStationsFt: number[];
   heights: {
@@ -59,6 +73,8 @@ const BRACE_LEG_FT = 2.5;
 const BRACE = lumber("4x4");
 const RIDGE_BOARD = lumber("2x12");
 const MIN_MEMBER_FT = inToFt(2);
+const TIE = lumber("6x8");
+const TRUSS_WEB = lumber("6x6");
 
 /** n values evenly spaced from `from` to `to`, inclusive. n >= 2. */
 export function spread(from: number, to: number, n: number): number[] {
@@ -109,13 +125,19 @@ export function layoutCarport(c: Carport): CarportLayout {
   };
   const plateAt = (x: number): number => undersideAt(x) - beamDepth;
 
-  // 1. posts
+  // 0. ground: a plane that rises from the lowest corner of the footprint
+  const groundAt = makeGround(c, w, d);
+
+  // 1. posts, from the ground up to the beam bearing
   const rowXs = spread(-xBear, xBear, c.posts.countAlongWidth);
   const postZs = spread(-(d / 2 - a / 2), d / 2 - a / 2, c.posts.countAlongDepth);
   const posts: Box[] = [];
   for (const x of rowXs) {
-    const h = plateAt(x);
-    for (const z of postZs) posts.push({ part: "post", center: [x, h / 2, z], size: [a, h, a] });
+    const top = plateAt(x);
+    for (const z of postZs) {
+      const base = groundAt(x, z);
+      posts.push({ part: "post", center: [x, (top + base) / 2, z], size: [a, top - base, a] });
+    }
   }
 
   // 2. beams, one per row, running along depth, ends flush with post faces
@@ -249,6 +271,40 @@ export function layoutCarport(c: Carport): CarportLayout {
     roofPlanes.push({ vertices: [P(-hu, yee, -hv), P(-hu, yee, hv), P(-ru, yr, 0)] });
   }
 
+  // 5b. king-post truss in each gable end
+  if (c.type === "gable" && c.gableTruss) {
+    const tieTop = bearingFt; // flush with the beam tops
+    const yRidge = undersideAt(0);
+    const zEnds = [postZs[0] ?? 0, postZs[postZs.length - 1] ?? 0];
+    for (const z of zEnds) {
+      members.push({
+        part: "tie",
+        a: [-xBear, tieTop - TIE.depthFt, z],
+        b: [xBear, tieTop - TIE.depthFt, z],
+        thicknessFt: TIE.thicknessFt,
+        depthFt: TIE.depthFt,
+      });
+      members.push({
+        part: "king",
+        a: [0, tieTop, z],
+        b: [0, yRidge, z],
+        thicknessFt: TRUSS_WEB.thicknessFt,
+        depthFt: TRUSS_WEB.depthFt,
+      });
+      const kneeY = tieTop + (yRidge - tieTop) * 0.3;
+      for (const s of [-1, 1]) {
+        const xEnd = s * xBear * 0.62;
+        members.push({
+          part: "strut",
+          a: [0, kneeY, z],
+          b: [xEnd, undersideAt(xEnd), z],
+          thicknessFt: TRUSS_WEB.thicknessFt,
+          depthFt: TRUSS_WEB.depthFt,
+        });
+      }
+    }
+  }
+
   // 6. knee braces on the corner posts, in the plane of the beam
   const firstZ = postZs[0] ?? 0;
   const lastZ = postZs[postZs.length - 1] ?? 0;
@@ -272,15 +328,56 @@ export function layoutCarport(c: Carport): CarportLayout {
     }
   }
 
+  // 7. graded pad: a wedge from the aerial plane up to the sloped ground
+  const pad: Vec3[][] = [];
+  if (c.ground.dropFt > 0) {
+    const m = a; // a little apron past the post faces
+    const cx = [-(w / 2 + m), w / 2 + m, w / 2 + m, -(w / 2 + m)];
+    const cz = [-(d / 2 + m), -(d / 2 + m), d / 2 + m, d / 2 + m];
+    const top = cx.map((x, i): Vec3 => [x, groundAt(x, cz[i] as number), cz[i] as number]);
+    const bottom = cx.map((x, i): Vec3 => [x, 0, cz[i] as number]);
+    pad.push(top);
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      pad.push([bottom[i] as Vec3, bottom[j] as Vec3, top[j] as Vec3, top[i] as Vec3]);
+    }
+  }
+
   return {
     posts,
     beams,
     ridge,
     members,
     roofPlanes,
+    pad,
+    groundAt,
     rafterStationsFt,
     heights: { bearingFt, peakFt, eaveUndersideFt },
   };
+}
+
+/**
+ * Ground height under the footprint: 0 at the lowest corner, rising to
+ * `dropFt` at the highest, along the downhill direction in the local frame.
+ */
+function makeGround(c: Carport, w: number, d: number): (x: number, z: number) => number {
+  const drop = c.ground.dropFt;
+  if (drop <= 0) return () => 0;
+  const phi = ((c.ground.towardDeg - c.rotationDeg) * Math.PI) / 180;
+  const ux = Math.cos(phi);
+  const uz = Math.sin(phi);
+  const corners: [number, number][] = [
+    [-w / 2, -d / 2],
+    [w / 2, -d / 2],
+    [w / 2, d / 2],
+    [-w / 2, d / 2],
+  ];
+  const projections = corners.map(([x, z]) => x * ux + z * uz);
+  const lo = Math.min(...projections);
+  const hi = Math.max(...projections);
+  const span = hi - lo || 1;
+  // larger projection = further downhill = lower ground
+  return (x, z) => ((hi - (x * ux + z * uz)) / span) * drop;
 }
 
 // ---------- meshes ----------
@@ -351,8 +448,18 @@ export function buildCarport(c: Carport): Group {
   for (const p of layout.posts) group.add(boxMesh(p, postMat));
   for (const b of layout.beams) group.add(boxMesh(b, postMat));
   if (layout.ridge) group.add(boxMesh(layout.ridge, trimMat));
-  for (const m of layout.members) group.add(memberMesh(m, m.part === "brace" ? postMat : trimMat));
+  const heavy = new Set<Part>(["brace", "tie", "king", "strut"]);
+  for (const m of layout.members) group.add(memberMesh(m, heavy.has(m.part) ? postMat : trimMat));
   for (const r of layout.roofPlanes) group.add(planeMesh(r, roofMat));
+  if (layout.pad.length > 0) {
+    const padMat = new MeshStandardMaterial({ color: "#c2bcae", roughness: 1, side: DoubleSide });
+    for (const face of layout.pad) {
+      const mesh = planeMesh({ vertices: face }, padMat);
+      mesh.name = "pad";
+      mesh.castShadow = false;
+      group.add(mesh);
+    }
+  }
 
   return group;
 }

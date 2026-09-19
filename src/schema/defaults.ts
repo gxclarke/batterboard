@@ -28,6 +28,8 @@ export function defaultCarport(overrides: Partial<Carport> = {}): Carport {
     framing: { beamSize: "2x10", beamPly: 2, rafterSize: "2x8", rafterSpacingIn: 24 },
     roofing: "standing-seam",
     colors: { post: "#6b4f2a", trim: "#e8e4dc", roof: "#5b6168" },
+    gableTruss: false,
+    ground: { dropFt: 0, towardDeg: 0 },
     ...overrides,
   };
 }

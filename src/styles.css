@@ -65,6 +65,34 @@ body,
   border-color: #555;
 }
 
+.project-name {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  min-width: 160px;
+}
+
+.project-name:hover,
+.project-name:focus {
+  border-color: #555;
+  outline: none;
+}
+
+.export-menu {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.export-message {
+  color: #f0c674;
+  font-size: 12.5px;
+  margin: 0 6px;
+}
+
 .tabs button.active {
   background: #3a3a37;
   border-color: #3a3a37;

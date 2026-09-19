@@ -7,6 +7,7 @@ import { useProject } from "@/store/useProject";
 import { useUi } from "@/store/useUi";
 import { Context } from "./Context";
 import { Ground } from "./Ground";
+import { SceneHandleBridge } from "./SceneHandleBridge";
 import { Structures } from "./Structures";
 import { Sun } from "./Sun";
 import { SunBar } from "./SunBar";
@@ -28,7 +29,7 @@ export function sceneExtent(): { center: Vector3; radius: number } {
   }
   return {
     center: siteToThree([(minX + maxX) / 2, (minY + maxY) / 2]),
-    radius: Math.max(20, Math.hypot(maxX - minX, maxY - minY) / 2 + 15),
+    radius: Math.max(32, Math.hypot(maxX - minX, maxY - minY) / 2 + 15),
   };
 }
 
@@ -47,7 +48,7 @@ function frameScene(): { target: Vector3; position: Vector3 } {
     maxY = Math.max(maxY, y);
   }
   const center = siteToThree([(minX + maxX) / 2, (minY + maxY) / 2]).add(new Vector3(0, 4, 0));
-  const radius = Math.max(20, Math.hypot(maxX - minX, maxY - minY) / 2 + 15);
+  const radius = Math.max(32, Math.hypot(maxX - minX, maxY - minY) / 2 + 15);
   // Look from the structure's side of the site so context blocks don't hide it.
   const first = structures[0];
   const focus = first ? siteToThree(first.position).add(new Vector3(0, 4, 0)) : center;
@@ -116,6 +117,7 @@ export function Viewport() {
         <Ground />
         <OrbitControls target={framing.target} maxPolarAngle={Math.PI / 2 - 0.02} makeDefault />
         <CameraRig framing={framing} />
+        <SceneHandleBridge />
       </Canvas>
       <ViewButtons />
       <SunBar />

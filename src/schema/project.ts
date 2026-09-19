@@ -190,6 +190,16 @@ export const CarportSchema = z.object({
 
   roofing: RoofingSchema,
   colors: z.object({ post: ColorSchema, trim: ColorSchema, roof: ColorSchema }),
+  /** Decorative king-post truss in each gable end (gable roofs only). */
+  gableTruss: z.boolean().default(false),
+  /**
+   * Ground slope across the footprint (ADR 0010). The lowest corner sits on
+   * the aerial plane; the ground rises by `dropFt` toward the opposite side.
+   * `towardDeg` is the downhill direction as a site angle.
+   */
+  ground: z
+    .object({ dropFt: z.number().min(0).max(6), towardDeg: z.number().min(0).max(360) })
+    .default({ dropFt: 0, towardDeg: 0 }),
 });
 export type Carport = z.infer<typeof CarportSchema>;
 

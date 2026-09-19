@@ -13,6 +13,7 @@ Decisions made while building that change or sharpen this plan. Each links to an
 - Carport framing convention: post rows along depth, beams along rows, rafters span width; shed roof slopes across width (ADR 0003).
 - Site y maps to Three.js +z, and `northOffsetDeg` is the bearing of image-up (ADR 0004).
 - The aerial is a list of same-zoom screenshot tiles in one pixel frame, cropped at import and aligned by one shared point (ADR 0008).
+- Ground slope is two numbers per structure, drawn as a graded pad above the aerial plane (ADR 0010).
 - Reality checks use approximate span tables and are advisory only (ADR 0009).
 - One project, tracing gated on small screens (ADR 0005). React 19 because r3f 9 requires it (ADR 0006). LLM is Claude Opus (ADR 0007).
 

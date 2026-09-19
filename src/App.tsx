@@ -1,3 +1,4 @@
+import { ExportMenu } from "./export/ExportMenu";
 import { StructurePanel } from "./panels/StructurePanel";
 import { Viewport } from "./scene/Viewport";
 import { defaultProject } from "./schema/defaults";
@@ -8,6 +9,8 @@ import { useUi } from "./store/useUi";
 
 export function App() {
   const hydrated = useProject((s) => s.hydrated);
+  const project = useProject((s) => s.project);
+  const commit = useProject((s) => s.commit);
   const mode = useUi((s) => s.mode);
   const setMode = useUi((s) => s.setMode);
 
@@ -32,7 +35,18 @@ export function App() {
             3D
           </button>
         </nav>
+        <input
+          className="project-name"
+          aria-label="Project name"
+          value={project.name}
+          onChange={(e) =>
+            commit("rename project", (d) => {
+              d.name = e.target.value || "Untitled project";
+            })
+          }
+        />
         <span className="spacer" />
+        <ExportMenu />
         <button type="button" onClick={resetProject}>
           New project
         </button>
