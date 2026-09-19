@@ -188,6 +188,12 @@ body,
   color: #7a5200;
 }
 
+.tool h3 {
+  font-size: 12px;
+  margin: 10px 0 4px;
+  color: #7a5200;
+}
+
 .tool p {
   margin: 6px 0;
   line-height: 1.4;
@@ -356,6 +362,17 @@ button.primary:disabled {
   border-radius: 4px;
   background: white;
   cursor: pointer;
+}
+
+.modal button.primary {
+  background: #1e1e1c;
+  color: white;
+  border-color: #1e1e1c;
+}
+
+.modal button.primary:disabled {
+  background: #888;
+  border-color: #888;
 }
 
 .crop-stage {

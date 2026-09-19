@@ -5,6 +5,14 @@ import { useProject } from "./useProject";
 
 const DEBOUNCE_MS = 400;
 
+/** Every blob key a project points at: aerial tiles and facade photos. */
+export function referencedBlobKeys(project: Project): string[] {
+  return [
+    ...project.site.tiles.map((t) => t.blobKey),
+    ...project.masses.flatMap((m) => (m.facade ?? []).map((f) => f.blobKey)),
+  ];
+}
+
 /** Load the last project (or start fresh) and save on every change thereafter. */
 export async function initPersistence(): Promise<void> {
   let project: Project;
@@ -16,7 +24,7 @@ export async function initPersistence(): Promise<void> {
     project = defaultProject();
   }
   useProject.getState().hydrate(project);
-  deleteOrphanBlobs(new Set(project.site.tiles.map((t) => t.blobKey))).catch(() => undefined);
+  deleteOrphanBlobs(new Set(referencedBlobKeys(project))).catch(() => undefined);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   useProject.subscribe((state, prev) => {

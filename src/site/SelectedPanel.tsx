@@ -6,11 +6,17 @@ import { type Selection, useUi } from "@/store/useUi";
 import { area, longestEdgeDeg } from "@/trace/polygon";
 
 /** Properties of whatever is selected in the site view. */
-export function SelectedPanel({ selection }: { selection: Selection }) {
+export function SelectedPanel({
+  selection,
+  onAddFacade,
+}: {
+  selection: Selection;
+  onAddFacade?: (massId: string) => void;
+}) {
   const project = useProject((s) => s.project);
   if (selection.kind === "mass") {
     const m = project.masses.find((x) => x.id === selection.id);
-    return m ? <MassPanel mass={m} /> : null;
+    return m ? <MassPanel mass={m} onAddFacade={onAddFacade} /> : null;
   }
   if (selection.kind === "surface") {
     const s = project.surfaces.find((x) => x.id === selection.id);
@@ -30,7 +36,7 @@ export function SelectedPanel({ selection }: { selection: Selection }) {
   );
 }
 
-function MassPanel({ mass }: { mass: Mass }) {
+function MassPanel({ mass, onAddFacade }: { mass: Mass; onAddFacade?: (massId: string) => void }) {
   const commit = useProject((s) => s.commit);
   const select = useUi((s) => s.select);
   const set = (fn: (m: Mass) => void) =>
@@ -139,7 +145,34 @@ function MassPanel({ mass }: { mass: Mass }) {
         <span>Wall color</span>
         <input type="color" value={mass.color} onChange={(e) => set((m) => (m.color = e.target.value))} />
       </label>
+      <h3>Facade photos</h3>
+      {(mass.facade ?? []).length > 0 && (
+        <ul className="tiles">
+          {(mass.facade ?? []).map((f) => (
+            <li key={f.wallIndex}>
+              <span>Wall {f.wallIndex + 1}</span>
+              <button
+                type="button"
+                title="Remove photo"
+                onClick={() =>
+                  set((m) => {
+                    m.facade = (m.facade ?? []).filter((x) => x.wallIndex !== f.wallIndex);
+                    if (m.facade.length === 0) m.facade = null;
+                  })
+                }
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="row">
+        {onAddFacade && (
+          <button type="button" onClick={() => onAddFacade(mass.id)}>
+            Add facade photo
+          </button>
+        )}
         <button type="button" onClick={remove}>
           Delete block
         </button>

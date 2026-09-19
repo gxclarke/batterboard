@@ -3,6 +3,7 @@
  * as data URLs only here, at the boundary. Import validates through migrate().
  */
 import { migrate, type Project } from "@/schema/project";
+import { referencedBlobKeys } from "@/store/autosave";
 
 export const PROJECT_FILE_FORMAT = "batterboard-project";
 export const PROJECT_FILE_EXT = ".batterboard.json";
@@ -41,9 +42,9 @@ export async function serializeProject(
   getBlob: (key: string) => Promise<Blob | undefined>,
 ): Promise<string> {
   const blobs: Record<string, string> = {};
-  for (const tile of project.site.tiles) {
-    const b = await getBlob(tile.blobKey);
-    if (b) blobs[tile.blobKey] = await blobToDataUrl(b);
+  for (const key of referencedBlobKeys(project)) {
+    const b = await getBlob(key);
+    if (b) blobs[key] = await blobToDataUrl(b);
   }
   const file: ProjectFile = {
     format: PROJECT_FILE_FORMAT,
@@ -72,10 +73,10 @@ export async function parseProjectFile(text: string): Promise<ParsedProjectFile>
   if (f?.format !== PROJECT_FILE_FORMAT) throw new Error("That is not a Batterboard project file.");
   const project = migrate(f.project);
   const blobs: Record<string, Blob> = {};
-  for (const tile of project.site.tiles) {
-    const url = f.blobs?.[tile.blobKey];
-    if (!url) throw new Error(`The file is missing the image for "${tile.name}".`);
-    blobs[tile.blobKey] = dataUrlToBlob(url);
+  for (const key of referencedBlobKeys(project)) {
+    const url = f.blobs?.[key];
+    if (!url) throw new Error(`The file is missing an image (${key}).`);
+    blobs[key] = dataUrlToBlob(url);
   }
   return { project, blobs };
 }

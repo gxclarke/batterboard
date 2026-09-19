@@ -4,16 +4,18 @@
  */
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { compositeBounds, formatFeet } from "@/calibrate/scale";
-import { useCalibrateTool } from "@/calibrate/useCalibrateTool";
+import { type SiteTool, useCalibrateTool } from "@/calibrate/useCalibrateTool";
 import { useCheckTool } from "@/calibrate/useCheckTool";
 import { drawSegment } from "@/calibrate/useLinePick";
+import { FacadeDialog } from "@/facade/FacadeDialog";
+import { wallFrame } from "@/geometry/mass";
 import { defaultMass, defaultSurface, newId } from "@/schema/defaults";
 import type { AerialTile, Point } from "@/schema/project";
 import { putBlob } from "@/store/persistence";
 import { useProject } from "@/store/useProject";
 import { type Selection, useUi } from "@/store/useUi";
 import { drawContext, hitTest, hitVertex, selectedPolygon } from "@/trace/contextOverlay";
-import { moveCornerKeepingRect, scalePolygon } from "@/trace/polygon";
+import { distancePointToSegment, moveCornerKeepingRect, scalePolygon } from "@/trace/polygon";
 import { usePolygonTool } from "@/trace/usePolygonTool";
 import { useRectTool } from "@/trace/useRectTool";
 import { AlignTileDialog } from "./AlignTileDialog";
@@ -23,10 +25,12 @@ import { SelectedPanel } from "./SelectedPanel";
 import { type CanvasView, type OverlayFn, SiteCanvas } from "./SiteCanvas";
 import { useTileImages } from "./useTileImages";
 
-type ToolId = "none" | "calibrate" | "check" | "rect" | "polygon" | "surface" | "lot" | "place";
+type ToolId = "none" | "calibrate" | "check" | "rect" | "polygon" | "surface" | "lot" | "place" | "facade";
 type Pending =
   | { kind: "crop"; file: File }
-  | { kind: "align"; blob: Blob; image: HTMLImageElement; width: number; height: number; name: string };
+  | { kind: "align"; blob: Blob; image: HTMLImageElement; width: number; height: number; name: string }
+  | { kind: "facade-file"; massId: string; wallIndex: number }
+  | { kind: "facade"; massId: string; wallIndex: number; file: File };
 
 const MIN_WIDTH = 800;
 
@@ -56,6 +60,8 @@ export function SiteView() {
   const [tool, setTool] = useState<ToolId>("none");
   const [pending, setPending] = useState<Pending | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const facadeInput = useRef<HTMLInputElement>(null);
+  const [facadeMassId, setFacadeMassId] = useState<string | null>(null);
 
   // ----- importing -----
   const beginImport = useCallback((file: File) => setPending({ kind: "crop", file }), []);
@@ -214,7 +220,116 @@ export function SiteView() {
     [project.structures, pxPerFoot, commit, select],
   );
 
-  const tools = { calibrate, check, rect, polygon: polyMass, surface: polySurface, lot: polyLot, place } as const;
+  const facadeMass = project.masses.find((m) => m.id === facadeMassId) ?? null;
+  const facade = useMemo<SiteTool>(() => {
+    const k = pxPerFoot ?? 1;
+    return {
+      overlay: (ctx, view) => {
+        if (!facadeMass) return;
+        const fp = facadeMass.footprint;
+        ctx.save();
+        ctx.font = `bold ${13 / view.scale}px system-ui, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        for (let i = 0; i < fp.length; i++) {
+          const a = fp[i] as Point;
+          const b = fp[(i + 1) % fp.length] as Point;
+          ctx.lineWidth = 4 / view.scale;
+          ctx.strokeStyle = "#38bdf8";
+          ctx.beginPath();
+          ctx.moveTo(a[0] * k, a[1] * k);
+          ctx.lineTo(b[0] * k, b[1] * k);
+          ctx.stroke();
+          const mx = ((a[0] + b[0]) / 2) * k;
+          const my = ((a[1] + b[1]) / 2) * k;
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.arc(mx, my, 11 / view.scale, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#0369a1";
+          ctx.fillText(String(i + 1), mx, my);
+        }
+        ctx.restore();
+      },
+      onClick: (p, view) => {
+        if (!facadeMass || !pxPerFoot) return;
+        const fp = facadeMass.footprint;
+        let best = -1;
+        let bestD = 14 / view.scale;
+        for (let i = 0; i < fp.length; i++) {
+          const a = fp[i] as Point;
+          const b = fp[(i + 1) % fp.length] as Point;
+          const d = distancePointToSegment(
+            p,
+            [a[0] * pxPerFoot, a[1] * pxPerFoot],
+            [b[0] * pxPerFoot, b[1] * pxPerFoot],
+          );
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        }
+        if (best < 0) return;
+        setPending({ kind: "facade-file", massId: facadeMass.id, wallIndex: best });
+        setTool("none");
+        facadeInput.current?.click();
+      },
+      onMove: () => undefined,
+      panel: (
+        <section className="tool">
+          <h2>Which wall?</h2>
+          <p>
+            Click the numbered wall of {facadeMass?.name ?? "the block"} that your photo shows. Then you'll pick the
+            photo.
+          </p>
+          <div className="row">
+            <button type="button" onClick={() => setTool("none")}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      ),
+    };
+  }, [facadeMass, pxPerFoot]);
+
+  const startFacade = useCallback((massId: string) => {
+    setFacadeMassId(massId);
+    setTool("facade");
+  }, []);
+
+  const applyFacade = async (massId: string, wallIndex: number, file: File, corners: [Point, Point, Point, Point]) => {
+    const blobKey = `facade_${newId("f")}`;
+    await putBlob(blobKey, file);
+    commit("facade photo", (d) => {
+      const m = d.masses.find((x) => x.id === massId);
+      if (!m) return;
+      const rest = (m.facade ?? []).filter((f) => f.wallIndex !== wallIndex);
+      m.facade = [...rest, { wallIndex, blobKey, corners }];
+    });
+    setPending(null);
+    select({ kind: "mass", id: massId });
+  };
+
+  const wallLabel = (massId: string, wallIndex: number): string => {
+    const m = project.masses.find((x) => x.id === massId);
+    const f = m ? wallFrame(m.footprint, wallIndex) : null;
+    if (!m || !f) return `wall ${wallIndex + 1}`;
+    const bearing =
+      ((((Math.atan2(f.outward[0], -f.outward[1]) * 180) / Math.PI + site.northOffsetDeg) % 360) + 360) % 360;
+    const dirs = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+    return `${m.name}, wall ${wallIndex + 1} (facing ${dirs[Math.round(bearing / 45) % 8]})`;
+  };
+
+  const tools = {
+    calibrate,
+    check,
+    rect,
+    polygon: polyMass,
+    surface: polySurface,
+    lot: polyLot,
+    place,
+    facade,
+  } as const;
   const activeTool = tool === "none" ? null : tools[tool];
   const toolOverlay = activeTool?.overlay;
 
@@ -386,7 +501,9 @@ export function SiteView() {
 
       <aside className="panel">
         {activeTool?.panel}
-        {!activeTool && selection && <SelectedPanel selection={selection} />}
+        {!activeTool && selection && (
+          <SelectedPanel selection={selection} onAddFacade={pxPerFoot ? startFacade : undefined} />
+        )}
 
         <Section title="Trace">
           {!pxPerFoot && <p className="muted">Calibrate the scale first.</p>}
@@ -546,6 +663,28 @@ export function SiteView() {
           e.target.value = "";
         }}
       />
+
+      <input
+        ref={facadeInput}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f && pending?.kind === "facade-file") setPending({ ...pending, kind: "facade", file: f });
+          else if (!f) setPending(null);
+          e.target.value = "";
+        }}
+      />
+
+      {pending?.kind === "facade" && (
+        <FacadeDialog
+          file={pending.file}
+          wallLabel={wallLabel(pending.massId, pending.wallIndex)}
+          onCancel={() => setPending(null)}
+          onDone={(corners) => applyFacade(pending.massId, pending.wallIndex, pending.file, corners)}
+        />
+      )}
 
       {pending?.kind === "crop" && (
         <CropDialog

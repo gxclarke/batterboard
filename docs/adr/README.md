@@ -16,3 +16,4 @@ Format: Context, Decision, Consequences. Keep each under a page.
 | [0008](0008-aerial-tiles.md) | Aerial as tiles, cropped at import, aligned by one point | accepted |
 | [0009](0009-reality-checks.md) | Reality checks are advisory approximations | accepted |
 | [0010](0010-ground-slope.md) | Ground slope under a structure | accepted |
+| [0011](0011-facade-photos.md) | Facade photos: store the corners, rectify at load | accepted |

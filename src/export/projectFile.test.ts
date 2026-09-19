@@ -20,6 +20,6 @@ describe("project file", () => {
     const p = defaultProject();
     p.site.tiles.push({ id: "t1", name: "aerial", blobKey: "aerial_t1", widthPx: 100, heightPx: 50, offsetPx: [0, 0] });
     const missing = JSON.stringify({ format: "batterboard-project", fileVersion: 1, project: p, blobs: {} });
-    await expect(parseProjectFile(missing)).rejects.toThrow(/missing the image/);
+    await expect(parseProjectFile(missing)).rejects.toThrow(/missing an image/);
   });
 });

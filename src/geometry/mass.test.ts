@@ -2,7 +2,7 @@ import { Mesh } from "three";
 import { describe, expect, it } from "vitest";
 import { defaultMass } from "@/schema/defaults";
 import type { Point } from "@/schema/project";
-import { buildMass } from "./mass";
+import { buildMass, wallFrame } from "./mass";
 import { layoutRoof } from "./roof";
 
 const rect: Point[] = [
@@ -56,15 +56,39 @@ describe("layoutRoof", () => {
   });
 });
 
+describe("wallFrame", () => {
+  it("orders each wall left-to-right for an outside viewer, whatever the trace direction", () => {
+    // wall 0 of rect runs along the top edge (y = 0); outside is -y, i.e. north on a north-up image. A viewer
+    // standing north and facing south has east (+x) on their LEFT, so left = (40,0), right = (0,0).
+    const f = wallFrame(rect, 0);
+    expect(f?.left).toEqual([40, 0]);
+    expect(f?.right).toEqual([0, 0]);
+    expect(f?.outward[1]).toBeLessThan(0);
+    expect(f?.lengthFt).toBe(40);
+    // reversed trace gives the same answer for the same physical wall
+    const reversed = [...rect].reverse();
+    const g = wallFrame(reversed, 2); // (40,0)->(0,0)
+    expect(g?.left).toEqual([40, 0]);
+    expect(g?.right).toEqual([0, 0]);
+  });
+  it("wall 1 (east, x = 40) is seen from the east facing west: north is on the right", () => {
+    const f = wallFrame(rect, 1);
+    expect(f?.outward[0]).toBeGreaterThan(0);
+    expect(f?.left).toEqual([40, 24]);
+    expect(f?.right).toEqual([40, 0]);
+  });
+});
+
 describe("buildMass", () => {
-  it("produces walls plus roof meshes", () => {
+  it("produces one quad per wall, a cap, and roof meshes", () => {
     const g = buildMass(defaultMass(rect));
-    expect(g.children.filter((o) => o instanceof Mesh)).toHaveLength(1 + 4); // walls + hip planes
-    expect(g.children[0]?.name).toBe("walls");
+    expect(g.children.filter((o) => o instanceof Mesh)).toHaveLength(4 + 1 + 4); // walls + cap + hip planes
+    expect(g.children[0]?.name).toBe("wall-0");
+    expect(g.children.find((o) => o.name === "cap")).toBeDefined();
   });
   it("defaults an L-shape to flat", () => {
     const m = defaultMass(ell);
     expect(m.roof.type).toBe("flat");
-    expect(buildMass(m).children).toHaveLength(2);
+    expect(buildMass(m).children).toHaveLength(6 + 1 + 1);
   });
 });
