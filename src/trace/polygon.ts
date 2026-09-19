@@ -223,6 +223,44 @@ export function moveCornerKeepingRect(poly: readonly Point[], index: number, tar
   return out.map(world);
 }
 
+/** Do two simple polygons overlap (edges cross or one contains a corner of the other)? */
+export function polygonsIntersect(a: readonly Point[], b: readonly Point[]): boolean {
+  for (let i = 0; i < a.length; i++) {
+    const a1 = a[i] as Point;
+    const a2 = a[(i + 1) % a.length] as Point;
+    for (let j = 0; j < b.length; j++) {
+      if (segmentsIntersect(a1, a2, b[j] as Point, b[(j + 1) % b.length] as Point)) return true;
+    }
+  }
+  return pointInPolygon(a[0] as Point, b) || pointInPolygon(b[0] as Point, a);
+}
+
+export function distancePointToSegment(p: Point, a: Point, b: Point): number {
+  const vx = b[0] - a[0];
+  const vy = b[1] - a[1];
+  const len2 = vx * vx + vy * vy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / len2));
+  return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy));
+}
+
+/** Shortest distance from a point to the outline of a polygon. */
+export function distanceToOutline(p: Point, poly: readonly Point[]): number {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    best = Math.min(best, distancePointToSegment(p, poly[i] as Point, poly[(i + 1) % poly.length] as Point));
+  }
+  return best;
+}
+
+/** Shortest distance between two polygon outlines (0 when they overlap). */
+export function polygonGap(a: readonly Point[], b: readonly Point[]): number {
+  if (polygonsIntersect(a, b)) return 0;
+  let best = Infinity;
+  for (const p of a) best = Math.min(best, distanceToOutline(p, b));
+  for (const p of b) best = Math.min(best, distanceToOutline(p, a));
+  return best;
+}
+
 export function scalePolygon(poly: readonly Point[], k: number): Point[] {
   return poly.map(([x, y]) => [x * k, y * k]);
 }

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { WarningPanel } from "@/checks/WarningPanel";
 import {
   BeamSizeSchema,
   type Carport,
@@ -41,6 +42,8 @@ export function StructurePanel() {
           </button>
         </div>
       </header>
+
+      <WarningPanel structure={carport} />
 
       <Section title="Roof">
         <Select

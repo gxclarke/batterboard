@@ -1,3 +1,4 @@
+import { WarningPanel } from "@/checks/WarningPanel";
 import { layoutRoof } from "@/geometry/roof";
 import { type Mass, MassRoofTypeSchema, type Surface, SurfaceMaterialSchema } from "@/schema/project";
 import { useProject } from "@/store/useProject";
@@ -21,9 +22,10 @@ export function SelectedPanel({ selection }: { selection: Selection }) {
     <section className="tool">
       <h2>{st.name}</h2>
       <p>
-        {st.widthFt} × {st.depthFt} ft at {st.rotationDeg}°. Use <em>Place</em> to move it here, or the 3D tab to change
-        everything else.
+        {st.widthFt} × {st.depthFt} ft at {st.rotationDeg}°. Drag it to move, [ and ] to rotate, or use the 3D tab to
+        change everything else.
       </p>
+      <WarningPanel structure={st} />
     </section>
   );
 }
