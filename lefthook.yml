@@ -1,0 +1,11 @@
+colors: false
+
+pre-commit:
+  commands:
+    biome:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
+      run: pnpm exec biome check --write --no-errors-on-unmatched --colors=off {staged_files}
+      stage_fixed: true
+    cspell:
+      glob: "*.{ts,tsx,md,json,jsonc}"
+      run: pnpm exec cspell --no-progress --no-must-find-files {staged_files}
