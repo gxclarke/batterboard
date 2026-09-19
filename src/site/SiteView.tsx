@@ -11,9 +11,9 @@ import { defaultMass, defaultSurface, newId } from "@/schema/defaults";
 import type { AerialTile, Point } from "@/schema/project";
 import { putBlob } from "@/store/persistence";
 import { useProject } from "@/store/useProject";
-import { useUi } from "@/store/useUi";
-import { drawContext, hitTest } from "@/trace/contextOverlay";
-import { scalePolygon } from "@/trace/polygon";
+import { type Selection, useUi } from "@/store/useUi";
+import { drawContext, hitTest, hitVertex, selectedPolygon } from "@/trace/contextOverlay";
+import { moveCornerKeepingRect, scalePolygon } from "@/trace/polygon";
 import { usePolygonTool } from "@/trace/usePolygonTool";
 import { useRectTool } from "@/trace/useRectTool";
 import { AlignTileDialog } from "./AlignTileDialog";
@@ -79,11 +79,29 @@ export function SiteView() {
           if (t === "none") select(null);
           return "none";
         });
+        return;
+      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      const { selection: sel } = useUi.getState();
+      if (!sel) return;
+      if (sel.kind === "structure" && (e.key === "[" || e.key === "]")) {
+        const step = (e.key === "]" ? 1 : -1) * (e.shiftKey ? 1 : 5);
+        commit("rotate structure", (d) => {
+          const s = d.structures.find((x) => x.id === sel.id);
+          if (s) s.rotationDeg = (((s.rotationDeg + step) % 360) + 360) % 360;
+        });
+      }
+      if (e.key === "Delete" && sel.kind !== "structure") {
+        commit("delete", (d) => {
+          d.masses = d.masses.filter((m) => m.id !== sel.id);
+          d.surfaces = d.surfaces.filter((s) => s.id !== sel.id);
+        });
+        select(null);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [select]);
+  }, [select, commit]);
 
   const addTile = async (blob: Blob, width: number, height: number, name: string, offsetPx: Point) => {
     const id = newId("tile");
@@ -200,6 +218,99 @@ export function SiteView() {
   const activeTool = tool === "none" ? null : tools[tool];
   const toolOverlay = activeTool?.overlay;
 
+  // ----- direct manipulation: drag a shape to move it, drag a corner to reshape it -----
+  interface DragState {
+    kind: "vertex" | "move";
+    selection: Selection;
+    index: number;
+    startPx: Point;
+    original: readonly Point[] | Point;
+  }
+  const dragRef = useRef<DragState | null>(null);
+  const [preview, setPreview] = useState<{ selection: Selection; polygon?: Point[]; position?: Point } | null>(null);
+
+  const previewProject = useMemo(() => {
+    if (!preview) return project;
+    const { selection: sel, polygon, position } = preview;
+    if (sel.kind === "mass" && polygon)
+      return { ...project, masses: project.masses.map((m) => (m.id === sel.id ? { ...m, footprint: polygon } : m)) };
+    if (sel.kind === "surface" && polygon)
+      return { ...project, surfaces: project.surfaces.map((s) => (s.id === sel.id ? { ...s, polygon } : s)) };
+    if (sel.kind === "structure" && position)
+      return { ...project, structures: project.structures.map((s) => (s.id === sel.id ? { ...s, position } : s)) };
+    return project;
+  }, [project, preview]);
+
+  const onDragStart = useCallback(
+    (p: Point, view: CanvasView): boolean => {
+      if (activeTool || !pxPerFoot) return false;
+      const poly = selectedPolygon(project, selection);
+      if (selection && poly) {
+        const index = hitVertex(poly, pxPerFoot, p, view.scale);
+        if (index >= 0) {
+          dragRef.current = { kind: "vertex", selection, index, startPx: p, original: poly };
+          return true;
+        }
+      }
+      const hit = hitTest(project, pxPerFoot, p);
+      if (!hit) return false;
+      if (!selection || selection.id !== hit.id) select(hit);
+      const original =
+        hit.kind === "structure"
+          ? (project.structures.find((s) => s.id === hit.id)?.position ?? [0, 0])
+          : (selectedPolygon(project, hit) ?? []);
+      dragRef.current = { kind: "move", selection: hit, index: -1, startPx: p, original };
+      return true;
+    },
+    [activeTool, pxPerFoot, project, selection, select],
+  );
+
+  const onDrag = useCallback(
+    (p: Point) => {
+      const d = dragRef.current;
+      if (!d || !pxPerFoot) return;
+      const dx = (p[0] - d.startPx[0]) / pxPerFoot;
+      const dy = (p[1] - d.startPx[1]) / pxPerFoot;
+      if (d.kind === "move" && d.selection.kind === "structure") {
+        const o = d.original as Point;
+        setPreview({ selection: d.selection, position: [o[0] + dx, o[1] + dy] });
+        return;
+      }
+      const o = d.original as readonly Point[];
+      const moved = o[d.index];
+      const polygon =
+        d.kind === "vertex" && moved
+          ? moveCornerKeepingRect(o, d.index, [moved[0] + dx, moved[1] + dy])
+          : o.map((v): Point => [v[0] + dx, v[1] + dy]);
+      setPreview({ selection: d.selection, polygon });
+    },
+    [pxPerFoot],
+  );
+
+  const onDragEnd = useCallback(() => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || !preview) {
+      setPreview(null);
+      return;
+    }
+    const r = (v: number) => Math.round(v * 20) / 20;
+    const { selection: sel, polygon, position } = preview;
+    commit(d.kind === "vertex" ? "reshape" : "move", (draft) => {
+      if (sel.kind === "structure" && position) {
+        const s = draft.structures.find((x) => x.id === sel.id);
+        if (s) s.position = [r(position[0]), r(position[1])];
+      } else if (sel.kind === "mass" && polygon) {
+        const m = draft.masses.find((x) => x.id === sel.id);
+        if (m) m.footprint = polygon.map(([x, y]) => [r(x), r(y)]);
+      } else if (sel.kind === "surface" && polygon) {
+        const s = draft.surfaces.find((x) => x.id === sel.id);
+        if (s) s.polygon = polygon.map(([x, y]) => [r(x), r(y)]);
+      }
+    });
+    setPreview(null);
+  }, [preview, commit]);
+
   const onCanvasClick = useCallback(
     (p: Point, view: CanvasView) => {
       if (activeTool) {
@@ -218,7 +329,7 @@ export function SiteView() {
       ctx.strokeStyle = "rgba(0,0,0,0.25)";
       for (const t of tiles) ctx.strokeRect(t.offsetPx[0], t.offsetPx[1], t.widthPx, t.heightPx);
       ctx.restore();
-      if (pxPerFoot) drawContext(ctx, view, project, pxPerFoot, selection);
+      if (pxPerFoot) drawContext(ctx, view, previewProject, pxPerFoot, selection);
       if (site.scale && tool === "none") {
         const { p1, p2 } = site.scale.calibration;
         ctx.save();
@@ -228,7 +339,7 @@ export function SiteView() {
       }
       toolOverlay?.(ctx, view);
     },
-    [tiles, site.scale, tool, toolOverlay, pxPerFoot, project, selection],
+    [tiles, site.scale, tool, toolOverlay, pxPerFoot, previewProject, selection],
   );
 
   const onDrop = (e: React.DragEvent) => {
@@ -264,6 +375,9 @@ export function SiteView() {
             overlay={overlay}
             onClick={onCanvasClick}
             onMove={activeTool?.onMove}
+            onDragStart={onDragStart}
+            onDrag={onDrag}
+            onDragEnd={onDragEnd}
             loupe={activeTool !== null}
             cursor={activeTool ? "crosshair" : "default"}
           />
@@ -299,7 +413,8 @@ export function SiteView() {
             </button>
           </div>
           <p className="hint">
-            Build the house from rectangular blocks so each can carry a hip or gable roof. Click any shape to edit it.
+            Build the house from rectangular blocks so each can carry a hip or gable roof. Click a shape to edit it,
+            drag it to move it, drag a corner to reshape it. With the carport selected, [ and ] rotate it.
           </p>
         </Section>
 

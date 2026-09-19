@@ -1,6 +1,21 @@
 import { useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace, Texture } from "three";
+
+const MAX_TEXTURE_PX = 2048;
+
+/** Phone screenshots can be 3000 px tall; the GPU does not need that on a ground plane. */
+function downscale(img: HTMLImageElement): CanvasImageSource {
+  const longest = Math.max(img.naturalWidth, img.naturalHeight);
+  if (longest <= MAX_TEXTURE_PX) return img;
+  const k = MAX_TEXTURE_PX / longest;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * k);
+  canvas.height = Math.round(img.naturalHeight * k);
+  canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 import { siteToThree } from "@/geometry/frame";
 import type { AerialTile } from "@/schema/project";
 import { loadTileImage } from "@/site/useTileImages";
@@ -79,7 +94,7 @@ function useTileTextures(tiles: readonly AerialTile[]): TileTexture[] {
       tiles.map((tile) =>
         loadTileImage(tile.blobKey).then(
           (img) => {
-            const texture = new Texture(img);
+            const texture = new Texture(downscale(img));
             texture.colorSpace = SRGBColorSpace;
             texture.anisotropy = gl.capabilities.getMaxAnisotropy();
             texture.needsUpdate = true;

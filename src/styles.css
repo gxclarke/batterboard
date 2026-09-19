@@ -184,6 +184,80 @@ button.primary:disabled {
   border-color: #888;
 }
 
+/* ---------- sun bar ---------- */
+
+.sunbar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.sunbar-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 220px;
+}
+
+.sunbar-time span {
+  width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sunbar-time input[type="range"] {
+  flex: 1;
+}
+
+.sunbar select,
+.sunbar input[type="number"] {
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: white;
+}
+
+.sunbar input[type="number"] {
+  width: 64px;
+}
+
+.sunbar-readout {
+  color: var(--muted);
+}
+
+.sunbar-coords {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sunbar button {
+  font: inherit;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.sunbar button.link {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
 /* ---------- dialogs ---------- */
 
 .modal-backdrop {

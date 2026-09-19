@@ -195,6 +195,34 @@ export function longestEdgeDeg(poly: readonly Point[]): number {
   return ((best % 360) + 360) % 360;
 }
 
+/**
+ * Move corner `index` of a rectangle to `target`, sliding its two neighbors so
+ * the shape stays a rectangle. Non-rectangles get a plain vertex move.
+ */
+export function moveCornerKeepingRect(poly: readonly Point[], index: number, target: Point): Point[] {
+  const f = poly.length === 4 ? rectFrame(poly, 0) : null;
+  if (!f) return poly.map((p, i) => (i === index ? target : p));
+  const local = (p: Point): Point => [
+    (p[0] - f.c[0]) * f.u[0] + (p[1] - f.c[1]) * f.u[1],
+    (p[0] - f.c[0]) * f.v[0] + (p[1] - f.c[1]) * f.v[1],
+  ];
+  const world = ([a, b]: Point): Point => [f.c[0] + f.u[0] * a + f.v[0] * b, f.c[1] + f.u[1] * a + f.v[1] * b];
+  const L = poly.map(local);
+  const me = L[index] as Point;
+  const t = local(target);
+  const prev = (index + 3) % 4;
+  const next = (index + 1) % 4;
+  const out = L.map((p) => [p[0], p[1]] as Point);
+  out[index] = t;
+  for (const n of [prev, next]) {
+    const q = out[n] as Point;
+    // the neighbor that shared my `a` coordinate follows my new `a`; likewise for `b`
+    if (Math.abs(q[0] - me[0]) < Math.abs(q[1] - me[1])) out[n] = [t[0], q[1]];
+    else out[n] = [q[0], t[1]];
+  }
+  return out.map(world);
+}
+
 export function scalePolygon(poly: readonly Point[], k: number): Point[] {
   return poly.map(([x, y]) => [x * k, y * k]);
 }

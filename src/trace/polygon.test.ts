@@ -6,6 +6,7 @@ import {
   chainWouldCross,
   isSimplePolygon,
   longestEdgeDeg,
+  moveCornerKeepingRect,
   pointInPolygon,
   rectCorners,
   rectFrame,
@@ -119,5 +120,27 @@ describe("polygon", () => {
         [0, 30],
       ]),
     ).toBe(90);
+  });
+
+  it("moving a rectangle corner keeps it rectangular", () => {
+    const rect: Point[] = [
+      [0, 0],
+      [30, 0],
+      [30, 12],
+      [0, 12],
+    ];
+    const out = moveCornerKeepingRect(rect, 2, [36, 15]);
+    expect(out[2]).toEqual([36, 15]);
+    expect(out[1]?.[0]).toBeCloseTo(36); // shares x with the moved corner
+    expect(out[3]?.[1]).toBeCloseTo(15); // shares y with the moved corner
+    expect(out[0]).toEqual([0, 0]);
+    expect(rectFrame(out, 0)).not.toBeNull();
+    // a non-rectangle just moves the vertex
+    const tri: Point[] = [
+      [0, 0],
+      [10, 0],
+      [5, 8],
+    ];
+    expect(moveCornerKeepingRect(tri, 2, [6, 9])[2]).toEqual([6, 9]);
   });
 });

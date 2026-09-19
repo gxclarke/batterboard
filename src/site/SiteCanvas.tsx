@@ -22,6 +22,10 @@ interface Props {
   overlay?: OverlayFn;
   onClick?: (p: Point, view: CanvasView) => void;
   onMove?: (p: Point | null, view: CanvasView) => void;
+  /** Return true to take over the drag (the canvas will not pan and no click fires). */
+  onDragStart?: (p: Point, view: CanvasView) => boolean;
+  onDrag?: (p: Point, view: CanvasView) => void;
+  onDragEnd?: (p: Point, view: CanvasView) => void;
   loupe?: boolean;
   cursor?: string;
 }
@@ -33,13 +37,24 @@ const LOUPE_R = 64;
 const LOUPE_ZOOM = 3;
 const BG = "#e6e6e0";
 
-export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = false, cursor = "grab" }: Props) {
+export function SiteCanvas({
+  images,
+  bounds,
+  overlay,
+  onClick,
+  onMove,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+  loupe = false,
+  cursor = "grab",
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const view = useRef<CanvasView>({ scale: 1, tx: 0, ty: 0 });
   const pointer = useRef<Point | null>(null);
   const raf = useRef(0);
-  const latest = useRef({ images, overlay, loupe, onClick, onMove });
-  latest.current = { images, overlay, loupe, onClick, onMove };
+  const latest = useRef({ images, overlay, loupe, onClick, onMove, onDragStart, onDrag, onDragEnd });
+  latest.current = { images, overlay, loupe, onClick, onMove, onDragStart, onDrag, onDragEnd };
 
   const toFrame = useCallback((sx: number, sy: number): Point => {
     const v = view.current;
@@ -178,7 +193,9 @@ export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = f
 
   // pointer handling: drag pans, two pointers pinch, a still click reaches the tool
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const drag = useRef<{ sx: number; sy: number; tx0: number; ty0: number; moved: boolean } | null>(null);
+  const drag = useRef<{ sx: number; sy: number; tx0: number; ty0: number; moved: boolean; owned: boolean } | null>(
+    null,
+  );
   const pinchDist = useRef<number | null>(null);
 
   const local = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -191,7 +208,8 @@ export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = f
     const p = local(e);
     pointers.current.set(e.pointerId, p);
     if (pointers.current.size === 1) {
-      drag.current = { sx: p.x, sy: p.y, tx0: view.current.tx, ty0: view.current.ty, moved: false };
+      const owned = e.button === 0 && (latest.current.onDragStart?.(toFrame(p.x, p.y), view.current) ?? false);
+      drag.current = { sx: p.x, sy: p.y, tx0: view.current.tx, ty0: view.current.ty, moved: false, owned };
     } else {
       drag.current = null;
       const [a, b] = Array.from(pointers.current.values());
@@ -218,7 +236,10 @@ export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = f
       const dx = p.x - d.sx;
       const dy = p.y - d.sy;
       if (!d.moved && Math.hypot(dx, dy) > CLICK_SLOP_PX) d.moved = true;
-      if (d.moved) {
+      if (d.moved && d.owned) {
+        latest.current.onDrag?.(toFrame(p.x, p.y), view.current);
+        requestDraw();
+      } else if (d.moved) {
         view.current = { ...view.current, tx: d.tx0 + dx, ty: d.ty0 + dy };
         requestDraw();
       }
@@ -232,8 +253,11 @@ export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = f
   const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     pointers.current.delete(e.pointerId);
     const d = drag.current;
-    if (d && !d.moved && e.button === 0) {
-      const p = local(e);
+    const p = local(e);
+    if (d?.owned) {
+      latest.current.onDragEnd?.(toFrame(p.x, p.y), view.current);
+      if (!d.moved) latest.current.onClick?.(toFrame(p.x, p.y), view.current);
+    } else if (d && !d.moved && e.button === 0) {
       latest.current.onClick?.(toFrame(p.x, p.y), view.current);
     }
     drag.current = null;

@@ -1,9 +1,13 @@
 /** Draws the project's 2D content over the aerial and hit-tests it. All input is site feet; drawn in frame px. */
+
+import { drawHandle } from "@/calibrate/useLinePick";
 import { SURFACE_COLORS } from "@/geometry/surface";
 import type { Point, Project } from "@/schema/project";
 import type { CanvasView } from "@/site/SiteCanvas";
 import type { Selection } from "@/store/useUi";
 import { centroid, pointInPolygon, rectCorners } from "./polygon";
+
+export const HANDLE_SCREEN_PX = 8;
 
 const STRUCTURE = "#f59e0b";
 
@@ -86,7 +90,29 @@ export function drawContext(
     ctx.fillStyle = "#1e1e1c";
     ctx.fillText(s.name, s.position[0] * k, s.position[1] * k);
   }
+
+  // corner handles on the selected shape
+  const poly = selectedPolygon(project, selection);
+  if (poly) for (const p of poly) drawHandle(ctx, view, [p[0] * k, p[1] * k], "#ffffff");
   ctx.restore();
+}
+
+/** The editable polygon of the selection, in site feet, or null for structures. */
+export function selectedPolygon(project: Project, selection: Selection | null): readonly Point[] | null {
+  if (!selection) return null;
+  if (selection.kind === "mass") return project.masses.find((m) => m.id === selection.id)?.footprint ?? null;
+  if (selection.kind === "surface") return project.surfaces.find((s) => s.id === selection.id)?.polygon ?? null;
+  return null;
+}
+
+/** Index of the selected shape's corner under a frame-pixel point, if any. */
+export function hitVertex(poly: readonly Point[], pxPerFoot: number, p: Point, viewScale: number): number {
+  const tol = HANDLE_SCREEN_PX / viewScale;
+  for (let i = 0; i < poly.length; i++) {
+    const v = poly[i] as Point;
+    if (Math.hypot(v[0] * pxPerFoot - p[0], v[1] * pxPerFoot - p[1]) <= tol) return i;
+  }
+  return -1;
 }
 
 /** Topmost object under a frame-pixel point: structures, then masses, then surfaces. */
