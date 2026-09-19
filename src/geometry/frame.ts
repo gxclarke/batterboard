@@ -7,12 +7,17 @@
  * A clockwise site angle is a negative rotation about three's +y.
  */
 import { Vector3 } from "three";
-import type { Point } from "@/schema/project";
+import type { Point, Vec3 } from "@/schema/project";
 
 export const DEG2RAD = Math.PI / 180;
 
 export function siteToThree([x, y]: Point, elevationFt = 0): Vector3 {
   return new Vector3(x, elevationFt, y);
+}
+
+/** Same mapping as siteToThree, as a plain tuple for layout code. */
+export function siteToThreeTuple([x, y]: Point, elevationFt = 0): Vec3 {
+  return [x, elevationFt, y];
 }
 
 export function threeToSite(v: Vector3): Point {

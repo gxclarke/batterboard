@@ -20,8 +20,8 @@ interface Props {
   images: TileImage[];
   bounds: Bounds | null;
   overlay?: OverlayFn;
-  onClick?: (p: Point) => void;
-  onMove?: (p: Point | null) => void;
+  onClick?: (p: Point, view: CanvasView) => void;
+  onMove?: (p: Point | null, view: CanvasView) => void;
   loupe?: boolean;
   cursor?: string;
 }
@@ -225,7 +225,7 @@ export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = f
     }
 
     pointer.current = toFrame(p.x, p.y);
-    latest.current.onMove?.(pointer.current);
+    latest.current.onMove?.(pointer.current, view.current);
     if (latest.current.loupe) requestDraw();
   };
 
@@ -234,7 +234,7 @@ export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = f
     const d = drag.current;
     if (d && !d.moved && e.button === 0) {
       const p = local(e);
-      latest.current.onClick?.(toFrame(p.x, p.y));
+      latest.current.onClick?.(toFrame(p.x, p.y), view.current);
     }
     drag.current = null;
     if (pointers.current.size < 2) pinchDist.current = null;
@@ -242,7 +242,7 @@ export function SiteCanvas({ images, bounds, overlay, onClick, onMove, loupe = f
 
   const onPointerLeave = () => {
     pointer.current = null;
-    latest.current.onMove?.(null);
+    latest.current.onMove?.(null, view.current);
     requestDraw();
   };
 

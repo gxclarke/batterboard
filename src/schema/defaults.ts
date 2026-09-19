@@ -1,4 +1,5 @@
-import type { Carport, Project } from "./project";
+import { longestEdgeDeg } from "@/trace/polygon";
+import type { Carport, Mass, Point, Project, Surface } from "./project";
 import { SCHEMA_VERSION } from "./project";
 
 export function newId(prefix: string): string {
@@ -29,6 +30,29 @@ export function defaultCarport(overrides: Partial<Carport> = {}): Carport {
     colors: { post: "#6b4f2a", trim: "#e8e4dc", roof: "#5b6168" },
     ...overrides,
   };
+}
+
+/** A house block. Rectangles default to a hip roof; anything else starts flat. */
+export function defaultMass(footprint: Point[], name = "House"): Mass {
+  const rect = footprint.length === 4;
+  return {
+    id: newId("mass"),
+    name,
+    footprint,
+    baseElevation: 0,
+    wallHeight: 10,
+    roof: { type: rect ? "hip" : "flat", pitch: 6, ridgeAxisDeg: longestEdgeDeg(footprint), overhangFt: 1.5 },
+    facade: null,
+    color: "#b9a88f",
+  };
+}
+
+export function defaultSurface(
+  polygon: Point[],
+  material: Surface["material"] = "concrete",
+  name = "Driveway",
+): Surface {
+  return { id: newId("surface"), name, polygon, material };
 }
 
 export function defaultProject(): Project {

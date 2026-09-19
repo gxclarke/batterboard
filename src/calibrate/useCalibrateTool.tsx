@@ -1,13 +1,15 @@
 import { type ReactNode, useState } from "react";
+import type { Point } from "@/schema/project";
+import type { CanvasView, OverlayFn } from "@/site/SiteCanvas";
 import { useProject } from "@/store/useProject";
 import { KNOWN_DIMENSIONS } from "./knownDimensions";
 import { pxDistance } from "./scale";
 import { useLinePick } from "./useLinePick";
 
 export interface SiteTool {
-  overlay: ReturnType<typeof useLinePick>["overlay"];
-  onClick: (p: [number, number]) => void;
-  onMove: (p: [number, number] | null) => void;
+  overlay: OverlayFn;
+  onClick: (p: Point, view: CanvasView) => void;
+  onMove: (p: Point | null, view: CanvasView) => void;
   panel: ReactNode;
 }
 

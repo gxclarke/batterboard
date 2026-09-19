@@ -7,17 +7,23 @@ import { compositeBounds, formatFeet } from "@/calibrate/scale";
 import { useCalibrateTool } from "@/calibrate/useCalibrateTool";
 import { useCheckTool } from "@/calibrate/useCheckTool";
 import { drawSegment } from "@/calibrate/useLinePick";
-import { newId } from "@/schema/defaults";
+import { defaultMass, defaultSurface, newId } from "@/schema/defaults";
 import type { AerialTile, Point } from "@/schema/project";
 import { putBlob } from "@/store/persistence";
 import { useProject } from "@/store/useProject";
+import { useUi } from "@/store/useUi";
+import { drawContext, hitTest } from "@/trace/contextOverlay";
+import { scalePolygon } from "@/trace/polygon";
+import { usePolygonTool } from "@/trace/usePolygonTool";
+import { useRectTool } from "@/trace/useRectTool";
 import { AlignTileDialog } from "./AlignTileDialog";
 import { CropDialog } from "./CropDialog";
 import { imageFileFrom, isImageFile, loadImage } from "./images";
-import { type OverlayFn, SiteCanvas } from "./SiteCanvas";
+import { SelectedPanel } from "./SelectedPanel";
+import { type CanvasView, type OverlayFn, SiteCanvas } from "./SiteCanvas";
 import { useTileImages } from "./useTileImages";
 
-type ToolId = "none" | "calibrate" | "check";
+type ToolId = "none" | "calibrate" | "check" | "rect" | "polygon" | "surface" | "lot" | "place";
 type Pending =
   | { kind: "crop"; file: File }
   | { kind: "align"; blob: Blob; image: HTMLImageElement; width: number; height: number; name: string };
@@ -36,8 +42,12 @@ function useNarrow(): boolean {
 }
 
 export function SiteView() {
-  const site = useProject((s) => s.project.site);
+  const project = useProject((s) => s.project);
+  const site = project.site;
   const commit = useProject((s) => s.commit);
+  const selection = useUi((s) => s.selection);
+  const select = useUi((s) => s.select);
+  const pxPerFoot = site.scale?.pxPerFoot ?? null;
   const tiles = site.tiles;
   const images = useTileImages(tiles);
   const bounds = useMemo(() => compositeBounds(tiles), [tiles]);
@@ -64,11 +74,16 @@ export function SiteView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setTool("none");
+      if (e.key === "Escape") {
+        setTool((t) => {
+          if (t === "none") select(null);
+          return "none";
+        });
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [select]);
 
   const addTile = async (blob: Blob, width: number, height: number, name: string, offsetPx: Point) => {
     const id = newId("tile");
@@ -109,8 +124,92 @@ export function SiteView() {
     onDone: () => setTool("none"),
     onRecalibrate: () => setTool("calibrate"),
   });
-  const activeTool = tool === "calibrate" ? calibrate : tool === "check" ? check : null;
+  const toFeet = useCallback(
+    (polyPx: Point[]) => (pxPerFoot ? scalePolygon(polyPx, 1 / pxPerFoot) : null),
+    [pxPerFoot],
+  );
+  const finishMass = useCallback(
+    (polyPx: Point[]) => {
+      const feet = toFeet(polyPx);
+      if (!feet) return;
+      const mass = defaultMass(feet, project.masses.length === 0 ? "House" : `Block ${project.masses.length + 1}`);
+      if (commit("trace block", (d) => void d.masses.push(mass))) select({ kind: "mass", id: mass.id });
+      setTool("none");
+    },
+    [toFeet, commit, select, project.masses.length],
+  );
+  const finishSurface = useCallback(
+    (polyPx: Point[]) => {
+      const feet = toFeet(polyPx);
+      if (!feet) return;
+      const surface = defaultSurface(
+        feet,
+        "concrete",
+        project.surfaces.length === 0 ? "Driveway" : `Surface ${project.surfaces.length + 1}`,
+      );
+      if (commit("trace surface", (d) => void d.surfaces.push(surface))) select({ kind: "surface", id: surface.id });
+      setTool("none");
+    },
+    [toFeet, commit, select, project.surfaces.length],
+  );
+  const finishLot = useCallback(
+    (polyPx: Point[]) => {
+      const feet = toFeet(polyPx);
+      if (!feet) return;
+      commit("trace lot", (d) => {
+        d.site.lot.boundary = feet;
+      });
+      setTool("none");
+    },
+    [toFeet, commit],
+  );
+  const rect = useRectTool({ active: tool === "rect", onComplete: finishMass });
+  const polyMass = usePolygonTool({ active: tool === "polygon", title: "Block outline", onComplete: finishMass });
+  const polySurface = usePolygonTool({
+    active: tool === "surface",
+    title: "Surface outline",
+    onComplete: finishSurface,
+  });
+  const polyLot = usePolygonTool({ active: tool === "lot", title: "Lot boundary", onComplete: finishLot });
+  const place = useMemo(
+    () => ({
+      overlay: (() => undefined) as OverlayFn,
+      onClick: (p: Point) => {
+        const first = project.structures[0];
+        if (!pxPerFoot || !first) return;
+        const pos: Point = [Math.round((p[0] / pxPerFoot) * 10) / 10, Math.round((p[1] / pxPerFoot) * 10) / 10];
+        commit("place structure", (d) => {
+          const s = d.structures.find((x) => x.id === first.id);
+          if (s) s.position = pos;
+        });
+        select({ kind: "structure", id: first.id });
+        setTool("none");
+      },
+      onMove: () => undefined,
+      panel: (
+        <section className="tool">
+          <h2>Place carport</h2>
+          <p>Click where the center of the carport should go. Rotate it from the 3D tab.</p>
+        </section>
+      ),
+    }),
+    [project.structures, pxPerFoot, commit, select],
+  );
+
+  const tools = { calibrate, check, rect, polygon: polyMass, surface: polySurface, lot: polyLot, place } as const;
+  const activeTool = tool === "none" ? null : tools[tool];
   const toolOverlay = activeTool?.overlay;
+
+  const onCanvasClick = useCallback(
+    (p: Point, view: CanvasView) => {
+      if (activeTool) {
+        activeTool.onClick(p, view);
+        return;
+      }
+      if (pxPerFoot) select(hitTest(project, pxPerFoot, p));
+    },
+    [activeTool, pxPerFoot, project, select],
+  );
 
   const overlay = useCallback<OverlayFn>(
     (ctx, view) => {
@@ -119,6 +218,7 @@ export function SiteView() {
       ctx.strokeStyle = "rgba(0,0,0,0.25)";
       for (const t of tiles) ctx.strokeRect(t.offsetPx[0], t.offsetPx[1], t.widthPx, t.heightPx);
       ctx.restore();
+      if (pxPerFoot) drawContext(ctx, view, project, pxPerFoot, selection);
       if (site.scale && tool === "none") {
         const { p1, p2 } = site.scale.calibration;
         ctx.save();
@@ -128,7 +228,7 @@ export function SiteView() {
       }
       toolOverlay?.(ctx, view);
     },
-    [tiles, site.scale, tool, toolOverlay],
+    [tiles, site.scale, tool, toolOverlay, pxPerFoot, project, selection],
   );
 
   const onDrop = (e: React.DragEvent) => {
@@ -162,16 +262,83 @@ export function SiteView() {
             images={images}
             bounds={bounds}
             overlay={overlay}
-            onClick={activeTool?.onClick}
+            onClick={onCanvasClick}
             onMove={activeTool?.onMove}
             loupe={activeTool !== null}
-            cursor={activeTool ? "crosshair" : "grab"}
+            cursor={activeTool ? "crosshair" : "default"}
           />
         )}
       </div>
 
       <aside className="panel">
         {activeTool?.panel}
+        {!activeTool && selection && <SelectedPanel selection={selection} />}
+
+        <Section title="Trace">
+          {!pxPerFoot && <p className="muted">Calibrate the scale first.</p>}
+          <div className="row wrap">
+            <button
+              type="button"
+              disabled={!pxPerFoot}
+              onClick={() => setTool("rect")}
+              title="Three clicks: a wall, then the depth"
+            >
+              House block
+            </button>
+            <button type="button" disabled={!pxPerFoot} onClick={() => setTool("polygon")}>
+              Block (outline)
+            </button>
+            <button type="button" disabled={!pxPerFoot} onClick={() => setTool("surface")}>
+              Driveway / surface
+            </button>
+            <button type="button" disabled={!pxPerFoot} onClick={() => setTool("lot")}>
+              Lot boundary
+            </button>
+            <button type="button" disabled={!pxPerFoot} onClick={() => setTool("place")}>
+              Place carport
+            </button>
+          </div>
+          <p className="hint">
+            Build the house from rectangular blocks so each can carry a hip or gable roof. Click any shape to edit it.
+          </p>
+        </Section>
+
+        {(project.masses.length > 0 || project.surfaces.length > 0 || site.lot.boundary) && (
+          <Section title="Objects">
+            <ul className="tiles">
+              {project.masses.map((m) => (
+                <li key={m.id}>
+                  <button type="button" className="link" onClick={() => select({ kind: "mass", id: m.id })}>
+                    {m.name} <small className="muted">{m.roof.type}</small>
+                  </button>
+                </li>
+              ))}
+              {project.surfaces.map((sf) => (
+                <li key={sf.id}>
+                  <button type="button" className="link" onClick={() => select({ kind: "surface", id: sf.id })}>
+                    {sf.name} <small className="muted">{sf.material}</small>
+                  </button>
+                </li>
+              ))}
+              {site.lot.boundary && (
+                <li>
+                  <span>Lot boundary</span>
+                  <button
+                    type="button"
+                    title="Remove"
+                    onClick={() =>
+                      commit("clear lot", (d) => {
+                        d.site.lot.boundary = null;
+                      })
+                    }
+                  >
+                    ×
+                  </button>
+                </li>
+              )}
+            </ul>
+          </Section>
+        )}
 
         <Section title="Aerial">
           {tiles.length === 0 && <p className="muted">No screenshot yet.</p>}

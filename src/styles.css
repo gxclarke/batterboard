@@ -334,6 +334,17 @@ button.primary:disabled {
   gap: 6px;
 }
 
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+.panel button.link {
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  text-align: left;
+}
+
 .panel button {
   font: inherit;
   padding: 3px 10px;

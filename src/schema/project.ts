@@ -93,10 +93,16 @@ export const MassSchema = z.object({
   footprint: PolygonSchema,
   baseElevation: z.number().min(-20).max(100), // feet above site datum
   wallHeight: z.number().min(4).max(80), // feet to eave
+  /**
+   * Roofs other than flat need a rectangular footprint (compose a house from
+   * rectangular blocks). `ridgeAxisDeg` is the ridge direction for gable and
+   * hip, and the downslope direction for shed. Ignored for flat.
+   */
   roof: z.object({
     type: MassRoofTypeSchema,
     pitch: z.number().min(0).max(24),
-    ridgeAxisDeg: z.number().min(0).max(360), // ignored for hip/flat
+    ridgeAxisDeg: z.number().min(0).max(360),
+    overhangFt: z.number().min(0).max(4).default(1),
   }),
   facade: z
     .array(
